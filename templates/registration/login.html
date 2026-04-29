@@ -1,0 +1,202 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login Form</title>
+    <link rel="stylesheet" href="{% static 'css/login.css' %}" />
+    <style>
+        .loader-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(12, 12, 14, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            backdrop-filter: blur(8px);
+        }
+        .loader-container {
+            text-align: center;
+        }
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #1e1e20;
+            border-top: 4px solid #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        .loader-text {
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loader -->
+    <div class="loader-overlay" id="loader">
+        <div class="loader-container">
+            <div class="loader"></div>
+            <div class="loader-text">Please wait...</div>
+        </div>
+    </div>
+
+    <div class="box">
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" style="display:flex; flex-direction:column;" method="post" action="{% url 'assistant:login' %}">
+            {% csrf_token %}
+            <div class="title">
+                <h1>Login Form</h1>
+            </div>
+            <div class="input-box">
+                <label class="label-color">Username</label>
+                <input type="text" name="email" placeholder="Username" autocomplete="username" required>
+
+                <label class="label-color">Password</label>
+                <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+
+                <button type="submit" class="Login">Login</button>
+
+                <p class="link-text">
+                    Forget password? <a href="#" onclick="switchForm('forgotForm')">Click Here</a>
+                </p>
+                <p class="link-text">
+                    Don't have an account?
+                    <a href="#" onclick="switchForm('signupForm')">Click Here</a>
+                </p>
+            </div>
+        </form>
+
+        <!-- SIGN UP FORM -->
+        <form id="signupForm" action="{% url 'assistant:signup' %}" style="display:none; flex-direction:column;" method="post">
+            {% csrf_token %}
+            <div class="title">
+                <h1>Sign Up</h1>
+            </div>
+            <div class="input-box">
+                <label class="label-color">Full Name</label>
+                <input type="text" name="name" placeholder="Full Name" autocomplete="name" required>
+
+                <label class="label-color">Email</label>
+                <input type="email" name="email" placeholder="Email" autocomplete="email" required>
+
+                <label class="label-color">Password</label>
+                <input type="password" name="password" placeholder="Password" autocomplete="new-password" required>
+
+                <button type="submit" id="registerBtn" class="Login1">Register</button>
+                <br><br>
+
+                <p class="switch" style="color:rgb(103, 173, 183);">
+                    Already have an account?
+                    <a href="#" onclick="switchForm('loginForm')" style="color:brown;">Sign In</a>
+                </p>
+            </div>
+        </form>
+
+        <!-- OTP VERIFY FORM -->
+
+
+        <!-- FORGOT PASSWORD FORM -->
+        <form id="forgotForm" style="display:none; flex-direction:column;" method="post"
+            action="{% url 'assistant:forgot_password' %}">
+            {% csrf_token %}
+            <div class="title">
+                <h1>Forgot Password</h1>
+            </div>
+            <div class="input-box">
+                <label class="label-color">Email</label>
+                <input type="email" name="email" placeholder="Enter your email" autocomplete="username" required>
+
+                <label class="label-color">New Password</label>
+                <input type="password" name="new_password" placeholder="New Password" autocomplete="new-password" required>
+
+                <label class="label-color">Confirm New Password</label>
+                <input type="password" name="confirm_password" placeholder="Confirm Password" autocomplete="new-password" required>
+
+                <label class="label-color">Captcha</label>
+                <div style="display:flex; align-items:center; gap:10px; margin:8px 0;">
+                    <div id="captchaData"
+                        style="padding:8px 14px; border:1px solid rgb(94, 94, 94); border-radius:6px; background:rgb(94, 94, 94); font-weight:bold; font-size:20px; color: white;">
+                        {{ captcha_code }}
+                    </div>
+                    <a href="#" id="refreshCaptcha"
+                        style="padding:6px 12px; border:none; border-radius:6px; background:#45f3ff; color:#000; font-weight:600; cursor:pointer;">
+                        ↻
+                    </a>
+                </div>
+
+                <input type="text" name="captcha" placeholder="Enter Captcha" required>
+
+                <button type="submit" class="Login2"
+                    style="margin-top:15px; padding-left: 30px; padding-right: 30px; text-align: center;">Reset
+                    Password</button>
+
+                <p class="switch" style="color:#fff; margin-top:15px;">
+                    Back to <a href="#" onclick="switchForm('loginForm')" style="color:rgb(153,41,99);">Login</a>
+                </p>
+            </div>
+        </form>
+
+    </div>
+    <script src="{% static 'js/login.js' %}"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            {% if show_form %}
+                switchForm('{{ show_form }}');
+            {% endif %}
+            
+            let captchaCode = "{{ captcha_code|escapejs }}";  // ✅ Works inside template
+            let canvas = document.getElementById("captchaCanvas");
+            // let ctx = canvas.getContext("2d");
+
+            function drawCaptcha(code) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.font = "24px Arial";
+                ctx.fillStyle = "#333";
+                ctx.fillText(code, 20, 30);
+            }
+
+            // First load
+            // drawCaptcha(captchaCode);
+
+            // Refresh button
+            document.getElementById("refreshCaptcha").addEventListener("click", (e) => {
+                e.preventDefault();
+                const captchaUrl = "{% url 'assistant:refresh_captcha' %}";
+                fetch(captchaUrl)
+                    .then(response => {
+                        if (response.ok) {
+                            return response.json();
+                        }
+                        throw new Error("Network response was not ok.");
+                    })
+                    .then(data => {
+                        console.log("Captcha refreshed:", data);
+                        document.getElementById("captchaData").innerText = data.captcha;
+                    })
+                    .catch(error => {
+                        console.error("There was a problem with the fetch operation:", error);
+                    });
+                // window.location.reload();
+            });
+        });
+    </script>
+</body>
+</html>

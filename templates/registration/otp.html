@@ -1,0 +1,172 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OTP Verification | ItHUB</title>
+    <link rel="stylesheet" href="{% static 'css/login.css' %}" />
+    <style>
+        /* --- MATCHING THE NEW LOGIN THEME --- */
+        .timer {
+            color: #38bdf8; /* Tech Blue */
+            font-size: 1.5rem;
+            margin: 20px 0;
+            text-align: center;
+            font-family: 'Inter', sans-serif;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .timer.expired {
+            color: #ef4444; /* Error Red */
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .timer span {
+            font-weight: 800;
+            display: inline-block;
+            min-width: 40px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .count-label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            color: #94a3b8;
+        }
+
+        /* --- STYLING THE OTP INPUTS --- */
+        .otp-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 25px 0;
+        }
+
+        .otp-input {
+            width: 45px;
+            height: 50px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+            border-radius: 10px;
+            transition: 0.3s;
+        }
+
+        .otp-input:focus {
+            border-color: #007bff !important;
+            box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.2) !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            outline: none;
+        }
+
+        .resend-disabled {
+            color: #64748b !important;
+            pointer-events: none;
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <form id="otpForm" method="post" action="{% if is_reset %}{% url 'assistant:reset_otp' %}{% else %}{% url 'assistant:otp' %}{% endif %}?email={{ email }}">
+            {% csrf_token %}
+            <div class="title">
+                <h1>Verify OTP</h1>
+                <p style="color:#94a3b8; font-size: 0.9rem;">Sent to <strong style="color:white;">{{ email }}</strong></p>
+            </div>
+            
+            <div class="input-box">
+                <div class="otp-row">
+                    <input type="text" maxlength="1" class="otp-input" autofocus>
+                    <input type="text" maxlength="1" class="otp-input">
+                    <input type="text" maxlength="1" class="otp-input">
+                    <input type="text" maxlength="1" class="otp-input">
+                    <input type="text" maxlength="1" class="otp-input">
+                    <input type="text" maxlength="1" class="otp-input">
+                </div>
+
+                {% if error %}<p style="color:#ef4444; text-align:center; font-size:0.85rem; margin-bottom:10px;">{{ error }}</p>{% endif %}
+
+                <input type="hidden" name="otp" id="fullOtp">
+                
+                <button type="submit" class="Login">Confirm & Verify</button>
+
+                <div class="timer" id="timer">
+                    <div class="count-label">Session Expires In</div>
+                    <span>60</span>s
+                </div>
+
+                <p class="link-text" style="text-align:center;">
+                    Didn't receive code? 
+                    <a href="#" id="resendLink" onclick="resendOtp()" class="resend-disabled">Resend OTP</a>
+                </p>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // --- TIMER LOGIC ---
+        let timeLeft = 60;
+        const timerElement = document.getElementById('timer');
+        const timerSpan = timerElement.querySelector('span');
+        const resendLink = document.getElementById('resendLink');
+
+        const countdown = setInterval(() => {
+            timeLeft--;
+            timerSpan.innerText = timeLeft;
+
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                timerElement.classList.add('expired');
+                timerElement.innerHTML = '<div class="count-label">Code Expired</div><span>00</span>s';
+                resendLink.classList.remove('resend-disabled');
+                resendLink.style.color = "#38bdf8"; // Enable resend link
+            }
+        }, 1000);
+
+        // --- AUTO-FOCUS NEXT INPUT LOGIC ---
+        const inputs = document.querySelectorAll('.otp-input');
+        const hiddenInput = document.getElementById('fullOtp');
+
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                }
+                updateHiddenInput();
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && index > 0 && !input.value) {
+                    inputs[index - 1].focus();
+                }
+            });
+        });
+
+        function updateHiddenInput() {
+            let otp = "";
+            inputs.forEach(input => otp += input.value);
+            hiddenInput.value = otp;
+        }
+    </script>
+</body>
+</html>

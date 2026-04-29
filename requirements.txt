@@ -1,0 +1,13 @@
+django
+django-environ
+langchain
+langchain-community
+langchain-groq
+langchain-huggingface
+langchain-classic
+sentence-transformers
+faiss-cpu
+pypdf
+python-docx
+python-dotenv
+whitenoise

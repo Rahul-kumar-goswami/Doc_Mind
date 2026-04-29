@@ -1,0 +1,140 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CelestAI - Dashboard</title>
+
+    <!-- External CSS & Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <!-- CSRF Token for JS -->
+    <script>
+        const CSRF_TOKEN = "{{ csrf_token }}";
+    </script>
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="brand-container">
+            <div class="flex items-center gap-3">
+                <div class="brand-logo"><i class="fas fa-star"></i></div>
+                <div class="brand-name">CelestAI</div>
+            </div>
+            <button id="refreshChatBtn" class="logout-btn" title="Reset Chat"
+                style="font-size: 0.9rem; margin-left: auto;">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <div class="new-chat-container">
+            <button class="btn-new-chat" id="newChatBtn">
+                <i class="fas fa-plus"></i>
+                <span>New Chat</span>
+            </button>
+        </div>
+
+        <div class="chat-history" id="chatHistory">
+            {% if history_groups %}
+            {% for group_name, items in history_groups.items %}
+            {% if items %}
+            <div class="history-section-title">{{ group_name }}</div>
+            {% for item in items %}
+            <div class="history-item" onclick="loadHistoryItem('{{ item.content|escapejs }}')">
+                <span>{{ item.content|truncatechars:25 }}</span>
+                <i class="fas fa-ellipsis-h"></i>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endfor %}
+            {% else %}
+            <div class="p-4 text-xs text-text-muted text-center italic">No recent chats</div>
+            {% endif %}
+        </div>
+
+        <div class="sidebar-footer">
+            {% if is_logged_in %}
+            <div class="user-profile">
+                <div class="user-avatar">{{ display_name|slice:":1"|upper }}</div>
+                <div class="user-name">{{ display_name|capfirst }}</div>
+            </div>
+            <form action="{% url 'assistant:logout' %}" method="post" id="logoutForm">
+                {% csrf_token %}
+                <button type="submit" class="logout-btn" title="Logout">
+                    <i class="fas fa-power-off"></i>
+                </button>
+            </form>
+            {% else %}
+            <div class="user-profile">
+                <div class="user-avatar"><i class="fas fa-user-secret"></i></div>
+                <div class="user-name">Guest User</div>
+            </div>
+            <a href="{% url 'assistant:login' %}" class="logout-btn" title="Login">
+                <i class="fas fa-sign-in-alt"></i>
+            </a>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Welcome Screen -->
+        <div class="welcome-container" id="welcomeScreen">
+            <div class="welcome-greeting"><span id="timeGreeting">Good Afternoon</span>, <span>{{ display_name|capfirst
+                    }}</span></div>
+            <div class="welcome-title">How can I help you?</div>
+            <div class="welcome-subtitle">
+                Ask me anything about your documents or start a new conversation.
+            </div>
+
+            <div class="suggested-actions">
+                <button class="suggest-btn"><i class="fas fa-comments"></i> Let's talk about..</button>
+                <button class="suggest-btn"><i class="fas fa-lightbulb"></i> Help me with..</button>
+                <button class="suggest-btn"><i class="fas fa-graduation-cap"></i> Teach me to..</button>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-container" id="chatContainer">
+            <!-- Messages will be injected here -->
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-row">
+                <div class="input-container-pill">
+                    <textarea id="userInput" placeholder="Type a prompt..." rows="1"></textarea>
+                    <button id="sendBtnPill">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                </div>
+
+                <button id="micBtnPill" title="Voice Input">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+
+            <div class="text-center mt-4 text-[10px] text-text-muted">
+                CelestAI can make mistakes. Check important info.
+            </div>
+        </div>
+    </main>
+
+    <!-- App Script -->
+    <script src="{% static 'js/script.js' %}"></script>
+    <script>
+        function loadHistoryItem(text) {
+            document.getElementById('userInput').value = text;
+            document.getElementById('userInput').dispatchEvent(new Event('input'));
+            document.getElementById('sendBtnPill').click();
+        }
+    </script>
+</body>
+
+</html>
