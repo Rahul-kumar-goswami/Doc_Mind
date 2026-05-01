@@ -1,4 +1,5 @@
 {% load static %}
+{% load socialaccount %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -73,6 +74,17 @@
                 <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
 
                 <button type="submit" class="Login">Login</button>
+
+                <div class="divider">
+                    <span>OR</span>
+                </div>
+
+                <a href="{% provider_login_url 'google' %}" class="google-btn">
+                    <div class="google-icon-wrapper">
+                        <img class="google-icon" src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" />
+                    </div>
+                    <p class="btn-text">Sign in with Google</p>
+                </a>
 
                 <p class="link-text">
                     Forget password? <a href="#" onclick="switchForm('forgotForm')">Click Here</a>

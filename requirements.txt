@@ -11,3 +11,4 @@ pypdf
 python-docx
 python-dotenv
 whitenoise
+django-allauth

@@ -18,7 +18,7 @@ from functools import wraps
 def session_login_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
-        if "user_id" not in request.session:
+        if "user_id" not in request.session and not request.user.is_authenticated:
             return redirect("assistant:login")
         return view_func(request, *args, **kwargs)
     return _wrapped_view
@@ -35,6 +35,18 @@ def index(request):
     }
     display_name = "Guest"
     user_id = request.session.get("user_id")
+
+    # Bridge between allauth and custom session auth
+    if not user_id and request.user.is_authenticated:
+        custom_user, created = CustomUser.objects.get_or_create(
+            email=request.user.email,
+            defaults={
+                'name': request.user.get_full_name() or request.user.email.split('@')[0],
+                'password': 'social_auth_user' # Dummy password for social users
+            }
+        )
+        request.session["user_id"] = custom_user.id
+        user_id = custom_user.id
 
     if user_id:
         try:
