@@ -8,6 +8,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuBtn = document.getElementById('menuBtn');
     const sidebar = document.getElementById('sidebar');
     const refreshChatBtn = document.getElementById('refreshChatBtn');
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+
+    // --- Theme Management ---
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateThemeIcon(currentTheme);
+
+    themeToggleBtn?.addEventListener('click', () => {
+        const theme = document.documentElement.getAttribute('data-theme');
+        const newTheme = theme === 'light' ? 'dark' : 'light';
+        
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateThemeIcon(newTheme);
+    });
+
+    function updateThemeIcon(theme) {
+        if (!themeToggleBtn) return;
+        const icon = themeToggleBtn.querySelector('i');
+        if (theme === 'light') {
+            icon.className = 'fas fa-sun';
+        } else {
+            icon.className = 'fas fa-moon';
+        }
+    }
 
     let recognition;
     const synth = window.speechSynthesis;

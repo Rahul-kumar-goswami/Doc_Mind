@@ -14,7 +14,10 @@
     <!-- CSRF Token for JS -->
     <script>
         const CSRF_TOKEN = "{{ csrf_token }}";
-    </script>
+        // Apply theme immediately to prevent flash
+        const theme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+    </script> <br>
 </head>
 
 <body>
@@ -26,10 +29,14 @@
                 <div class="brand-logo"><i class="fas fa-star"></i></div>
                 <div class="brand-name">CelestAI</div>
             </div>
-            <button id="refreshChatBtn" class="logout-btn" title="Reset Chat"
-                style="font-size: 0.9rem; margin-left: auto;">
-                <i class="fas fa-sync-alt"></i>
-            </button>
+            <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+                <button id="themeToggleBtn" class="logout-btn" title="Toggle Theme" style="font-size: 0.9rem;">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button id="refreshChatBtn" class="logout-btn" title="Reset Chat" style="font-size: 0.9rem;">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
         </div>
 
         <div class="new-chat-container">
