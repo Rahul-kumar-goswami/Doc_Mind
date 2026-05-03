@@ -253,6 +253,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let currentSessionId = typeof CURRENT_SESSION_ID !== 'undefined' ? CURRENT_SESSION_ID : '';
+
     async function sendQuestion() {
         const question = userInput.value.trim();
         if (!question) return;
@@ -278,13 +280,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/ask/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question })
+                body: JSON.stringify({ question, session_id: currentSessionId })
             });
             const data = await response.json();
             
             thinking.remove();
             const aiTextElement = appendMessage('ai', '', true);
             await typeWriter(aiTextElement, data.answer);
+
+            // If a new session was created, update the URL and currentSessionId
+            if (data.session_id && currentSessionId !== data.session_id) {
+                currentSessionId = data.session_id;
+                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?session=' + currentSessionId;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+                
+                // Reload after a short delay to let the user see the AI started responding,
+                // this ensures the sidebar gets the new title.
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            }
 
             if (data.redirect) {
                 // Show alert then redirect immediately after user clicks OK
@@ -311,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sendBtn.addEventListener('click', sendQuestion);
 
     refreshChatBtn?.addEventListener('click', async () => {
-        if (confirm("Reset chat history?")) {
+        if (confirm("Reset current chat history?")) {
             await fetch('/reset/', { method: 'POST' });
             window.location.reload();
         }
@@ -325,9 +340,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     newChatBtn.addEventListener('click', () => {
-        if (confirm("Start a new chat?")) {
-            window.location.reload();
-        }
+        // Just navigate to the index page without a session parameter to start a fresh chat
+        window.location.href = '/';
     });
 
     menuBtn?.addEventListener('click', () => {
@@ -343,4 +357,11 @@ document.addEventListener('DOMContentLoaded', () => {
             sidebar.classList.remove('open');
         }
     });
+
+    // --- Initialize Full History ---
+    if (typeof FULL_HISTORY !== 'undefined' && FULL_HISTORY.length > 0) {
+        FULL_HISTORY.forEach(msg => {
+            appendMessage(msg.role, msg.content);
+        });
+    }
 });

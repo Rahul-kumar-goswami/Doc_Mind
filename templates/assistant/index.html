@@ -14,6 +14,8 @@
     <!-- CSRF Token for JS -->
     <script>
         const CSRF_TOKEN = "{{ csrf_token }}";
+        const FULL_HISTORY = {{ full_history|safe }};
+        const CURRENT_SESSION_ID = "{{ current_session_id|default:'' }}";
         // Apply theme immediately to prevent flash
         const theme = localStorage.getItem('theme') || 'dark';
         document.documentElement.setAttribute('data-theme', theme);
@@ -47,20 +49,24 @@
         </div>
 
         <div class="chat-history" id="chatHistory">
-            {% if history_groups %}
-            {% for group_name, items in history_groups.items %}
-            {% if items %}
-            <div class="history-section-title">{{ group_name }}</div>
-            {% for item in items %}
-            <div class="history-item" onclick="loadHistoryItem('{{ item.content|escapejs }}')">
-                <span>{{ item.content|truncatechars:25 }}</span>
-                <i class="fas fa-ellipsis-h"></i>
-            </div>
-            {% endfor %}
-            {% endif %}
-            {% endfor %}
+            {% if is_logged_in %}
+                <!-- New Chat indicator -->
+                <a href="/" class="history-item {% if not current_session_id %}active{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                    <i class="fas fa-plus-circle" style="margin-right: 10px;"></i>
+                    <span>New Chat</span>
+                </a>
+
+                {% if sessions %}
+                    <div class="history-section-title" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;">Recent Chats</div>
+                    {% for session in sessions %}
+                    <a href="?session={{ session.id }}" class="history-item {% if session.id == current_session_id %}active{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
+                        <i class="fas fa-message" style="margin-right: 10px;"></i>
+                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ session.title }}</span>
+                    </a>
+                    {% endfor %}
+                {% endif %}
             {% else %}
-            <div class="p-4 text-xs text-text-muted text-center italic">No recent chats</div>
+            <div class="p-4 text-xs text-text-muted text-center italic">Login to see history</div>
             {% endif %}
         </div>
 
@@ -135,13 +141,6 @@
 
     <!-- App Script -->
     <script src="{% static 'js/script.js' %}"></script>
-    <script>
-        function loadHistoryItem(text) {
-            document.getElementById('userInput').value = text;
-            document.getElementById('userInput').dispatchEvent(new Event('input'));
-            document.getElementById('sendBtnPill').click();
-        }
-    </script>
 </body>
 
 </html>

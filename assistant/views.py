@@ -23,18 +23,18 @@ def session_login_required(view_func):
         return view_func(request, *args, **kwargs)
     return _wrapped_view
 
+import uuid
+
 def index(request):
     from django.contrib.auth.models import User
     from django.utils import timezone
     from datetime import timedelta
+    from django.db.models import Max
     
-    history = {
-        'Today': [],
-        'Yesterday': [],
-        'Previous Days': []
-    }
+    sessions_list = []
     display_name = "Guest"
     user_id = request.session.get("user_id")
+    current_session_id = request.GET.get('session')
 
     # Bridge between allauth and custom session auth
     if not user_id and request.user.is_authenticated:
@@ -48,33 +48,39 @@ def index(request):
         request.session["user_id"] = custom_user.id
         user_id = custom_user.id
 
+    full_history = []
     if user_id:
         try:
             custom_user = CustomUser.objects.get(id=user_id)
             display_name = custom_user.name or custom_user.email
             django_user, _ = User.objects.get_or_create(username=custom_user.email, email=custom_user.email)
             
-            # Get user messages to represent chat "sessions"
-            raw_history = ChatHistory.objects.filter(user=django_user, role='user').order_by('-timestamp')[:30]
+            # Get all distinct sessions for this user
+            distinct_sessions = ChatHistory.objects.filter(user=django_user).values('session_id', 'session_title').annotate(latest=Max('timestamp')).order_by('-latest')
             
-            now = timezone.now()
-            today = now.date()
-            yesterday = today - timedelta(days=1)
+            for sess in distinct_sessions:
+                if sess['session_id']:
+                    sessions_list.append({
+                        'id': sess['session_id'],
+                        'title': sess['session_title'] or "New Chat"
+                    })
 
-            for item in raw_history:
-                item_date = item.timestamp.date()
-                if item_date == today:
-                    history['Today'].append(item)
-                elif item_date == yesterday:
-                    history['Yesterday'].append(item)
-                else:
-                    history['Previous Days'].append(item)
+            # Get full chat history for the selected session
+            if current_session_id:
+                history_objs = ChatHistory.objects.filter(user=django_user, session_id=current_session_id).order_by('timestamp')
+                for msg in history_objs:
+                    full_history.append({
+                        'role': 'user' if msg.role == 'user' else 'ai',
+                        'content': msg.content
+                    })
                     
         except Exception as e:
             print(f"Error loading history: {e}")
     
     return render(request, 'assistant/index.html', {
-        'history_groups': history, 
+        'sessions': sessions_list, 
+        'full_history': full_history,
+        'current_session_id': current_session_id,
         'display_name': display_name,
         'is_logged_in': user_id is not None
     })
@@ -87,6 +93,7 @@ def ask(request):
     try:
         data = json.loads(request.body)
         question = data.get("question", "")
+        session_id = data.get("session_id")
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
 
@@ -104,6 +111,9 @@ def ask(request):
             custom_user = CustomUser.objects.get(id=user_id)
             django_user, _ = User.objects.get_or_create(username=custom_user.email, email=custom_user.email)
 
+            if not session_id:
+                session_id = str(uuid.uuid4())
+
             # 1. User Memory Logic
             name_match = re.search(r"my name is ([\w\s]+)", question, re.IGNORECASE)
             if name_match:
@@ -119,7 +129,8 @@ def ask(request):
             user_name = user_name_obj.value if user_name_obj else None
             user_memory_context = f"User's name is {user_name}." if user_name else "I don't know the user's name yet."
             
-            history_objs = ChatHistory.objects.filter(user=django_user).order_by('-timestamp')[:10]
+            # Context only from the CURRENT session
+            history_objs = ChatHistory.objects.filter(user=django_user, session_id=session_id).order_by('-timestamp')[:10]
             chat_history_str = "\n".join([f"{msg.role}: {msg.content}" for msg in reversed(history_objs)])
         except CustomUser.DoesNotExist:
             user_id = None
@@ -133,9 +144,13 @@ def ask(request):
 
     # 4. Log to DB if logged in
     if django_user:
-        ChatHistory.objects.create(user=django_user, role='user', content=question)
-        ChatHistory.objects.create(user=django_user, role='assistant', content=answer)
-        return JsonResponse({"answer": answer})
+        # If it's a new session, set the title based on the first question
+        is_new_session = not ChatHistory.objects.filter(user=django_user, session_id=session_id).exists()
+        session_title = question[:50] + "..." if is_new_session else "New Chat" # Default or placeholder
+        
+        ChatHistory.objects.create(user=django_user, role='user', content=question, session_id=session_id, session_title=session_title)
+        ChatHistory.objects.create(user=django_user, role='assistant', content=answer, session_id=session_id, session_title=session_title)
+        return JsonResponse({"answer": answer, "session_id": session_id})
     else:
         # For guest users, return the answer and a redirect hint
         return JsonResponse({

@@ -37,6 +37,8 @@ class ChatHistory(models.Model):
     role = models.CharField(max_length=20) # 'user' or 'assistant'
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+    session_id = models.CharField(max_length=100, null=True, blank=True)
+    session_title = models.CharField(max_length=255, default="New Chat")
 
     class Meta:
         ordering = ['timestamp']
