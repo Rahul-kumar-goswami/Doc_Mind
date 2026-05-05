@@ -14,12 +14,12 @@
     <!-- CSRF Token for JS -->
     <script>
         const CSRF_TOKEN = "{{ csrf_token }}";
-        const FULL_HISTORY = {{ full_history|safe }};
+        const FULL_HISTORY = {{ full_history_json|safe }};
         const CURRENT_SESSION_ID = "{{ current_session_id|default:'' }}";
         // Apply theme immediately to prevent flash
         const theme = localStorage.getItem('theme') || 'dark';
         document.documentElement.setAttribute('data-theme', theme);
-    </script> <br>
+    </script>
 </head>
 
 <body>
@@ -59,10 +59,21 @@
                 {% if sessions %}
                     <div class="history-section-title" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;">Recent Chats</div>
                     {% for session in sessions %}
-                    <a href="?session={{ session.id }}" class="history-item {% if session.id == current_session_id %}active{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center;">
-                        <i class="fas fa-message" style="margin-right: 10px;"></i>
-                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ session.title }}</span>
-                    </a>
+                    <div class="history-item-container" style="position: relative; display: flex; align-items: center; margin-bottom: 4px;">
+                        <a href="?session={{ session.id }}" class="history-item {% if session.id == current_session_id %}active{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center; flex: 1; min-width: 0;">
+                            <i class="fas fa-message" style="margin-right: 10px;"></i>
+                            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ session.title }}</span>
+                        </a>
+                        <button class="session-menu-btn" data-session-id="{{ session.id }}" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; opacity: 0; transition: opacity 0.2s;">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="session-dropdown" id="dropdown-{{ session.id }}" style="display: none; position: absolute; right: 0; top: 100%; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 8px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;">
+                            <button class="delete-session-item" data-session-id="{{ session.id }}" style="width: 100%; text-align: left; padding: 10px 16px; background: transparent; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Delete Chat</span>
+                            </button>
+                        </div>
+                    </div>
                     {% endfor %}
                 {% endif %}
             {% else %}

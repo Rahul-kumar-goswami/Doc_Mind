@@ -7,6 +7,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('ask/', views.ask, name='ask'),
     path('reset/', views.reset, name='reset'),
+    path('delete-session/', views.delete_session, name='delete_session'),
 
     # Auth URLs
     path('login/', views.login_view, name='login'),

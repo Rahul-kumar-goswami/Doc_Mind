@@ -150,6 +150,18 @@ body {
     opacity: 1;
 }
 
+.history-item-container:hover .session-menu-btn {
+    opacity: 1 !important;
+}
+
+.session-menu-btn:hover {
+    color: white !important;
+}
+
+.delete-session-item:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
 .sidebar-footer {
     padding: 16px;
     border-top: 1px solid var(--border-color);

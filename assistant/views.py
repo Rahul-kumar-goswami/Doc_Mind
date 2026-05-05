@@ -49,20 +49,25 @@ def index(request):
         user_id = custom_user.id
 
     full_history = []
+    full_history_json = "[]"
     if user_id:
         try:
             custom_user = CustomUser.objects.get(id=user_id)
             display_name = custom_user.name or custom_user.email
             django_user, _ = User.objects.get_or_create(username=custom_user.email, email=custom_user.email)
             
-            # Get all distinct sessions for this user
-            distinct_sessions = ChatHistory.objects.filter(user=django_user).values('session_id', 'session_title').annotate(latest=Max('timestamp')).order_by('-latest')
+            # Get all distinct sessions for this user, grouping only by session_id
+            # We use annotate to get the latest timestamp and then we'll get the title for each unique session_id
+            session_ids = ChatHistory.objects.filter(user=django_user).values('session_id').annotate(latest=Max('timestamp')).order_by('-latest')
             
-            for sess in distinct_sessions:
-                if sess['session_id']:
+            for sess_data in session_ids:
+                sid = sess_data['session_id']
+                if sid:
+                    # Get the title from the first message in this session
+                    first_msg = ChatHistory.objects.filter(user=django_user, session_id=sid).first()
                     sessions_list.append({
-                        'id': sess['session_id'],
-                        'title': sess['session_title'] or "New Chat"
+                        'id': sid,
+                        'title': first_msg.session_title if first_msg else "New Chat"
                     })
 
             # Get full chat history for the selected session
@@ -73,13 +78,14 @@ def index(request):
                         'role': 'user' if msg.role == 'user' else 'ai',
                         'content': msg.content
                     })
+                full_history_json = json.dumps(full_history)
                     
         except Exception as e:
             print(f"Error loading history: {e}")
     
     return render(request, 'assistant/index.html', {
         'sessions': sessions_list, 
-        'full_history': full_history,
+        'full_history_json': full_history_json,
         'current_session_id': current_session_id,
         'display_name': display_name,
         'is_logged_in': user_id is not None
@@ -145,8 +151,11 @@ def ask(request):
     # 4. Log to DB if logged in
     if django_user:
         # If it's a new session, set the title based on the first question
-        is_new_session = not ChatHistory.objects.filter(user=django_user, session_id=session_id).exists()
-        session_title = question[:50] + "..." if is_new_session else "New Chat" # Default or placeholder
+        existing_msg = ChatHistory.objects.filter(user=django_user, session_id=session_id).first()
+        if existing_msg:
+            session_title = existing_msg.session_title
+        else:
+            session_title = question[:50] + ("..." if len(question) > 50 else "")
         
         ChatHistory.objects.create(user=django_user, role='user', content=question, session_id=session_id, session_title=session_title)
         ChatHistory.objects.create(user=django_user, role='assistant', content=answer, session_id=session_id, session_title=session_title)
@@ -166,6 +175,20 @@ def reset(request):
     django_user = User.objects.get(username=custom_user.email)
     ChatHistory.objects.filter(user=django_user).delete()
     return JsonResponse({"message": "Memory reset successful."})
+
+@csrf_exempt
+@session_login_required
+def delete_session(request):
+    session_id = request.GET.get('session_id')
+    if not session_id:
+        return JsonResponse({"error": "No session ID provided"}, status=400)
+    
+    from django.contrib.auth.models import User
+    custom_user = CustomUser.objects.get(id=request.session["user_id"])
+    django_user = User.objects.get(username=custom_user.email)
+    
+    deleted_count, _ = ChatHistory.objects.filter(user=django_user, session_id=session_id).delete()
+    return JsonResponse({"message": f"Session deleted successfully. {deleted_count} messages removed."})
 
 def generate_captcha():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))

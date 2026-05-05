@@ -47,6 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
         synth.onvoiceschanged = loadVoices;
     }
 
+    let lastUserQuestion = ''; // Declare lastUserQuestion here
+
     function speak(text, btn) {
         if (!text) return;
         
@@ -348,8 +350,57 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.classList.toggle('open');
     });
 
-    // Close sidebar on click outside (mobile)
+    // --- Session Menu & Deletion ---
+    document.querySelectorAll('.session-menu-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const sid = btn.getAttribute('data-session-id');
+            const dropdown = document.getElementById(`dropdown-${sid}`);
+            
+            // Close all other dropdowns first
+            document.querySelectorAll('.session-dropdown').forEach(d => {
+                if (d !== dropdown) d.style.display = 'none';
+            });
+
+            // Toggle current dropdown
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        });
+    });
+
+    document.querySelectorAll('.delete-session-item').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const sid = btn.getAttribute('data-session-id');
+            if (confirm("Are you sure you want to delete this chat session?")) {
+                try {
+                    const response = await fetch(`/delete-session/?session_id=${sid}`);
+                    const data = await response.json();
+                    if (response.ok) {
+                        // If we are currently viewing this session, redirect to home
+                        if (CURRENT_SESSION_ID === sid) {
+                            window.location.href = '/';
+                        } else {
+                            window.location.reload();
+                        }
+                    } else {
+                        alert("Error deleting session: " + data.error);
+                    }
+                } catch (err) {
+                    alert("Failed to delete session.");
+                }
+            }
+        });
+    });
+
+    // Close dropdowns on click outside (mobile)
     document.addEventListener('click', (e) => {
+        // Close session dropdowns
+        if (!e.target.closest('.session-menu-btn') && !e.target.closest('.session-dropdown')) {
+            document.querySelectorAll('.session-dropdown').forEach(d => d.style.display = 'none');
+        }
+
         if (window.innerWidth <= 768 && 
             !sidebar.contains(e.target) && 
             !menuBtn.contains(e.target) && 
