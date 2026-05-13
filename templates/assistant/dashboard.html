@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Dashboard | CelestAI</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Ambient Background Glows -->
+        <div class="ambient-glow glow-1"></div>
+        <div class="ambient-glow glow-2"></div>
+
+        <!-- LEFT SIDEBAR (Consistent with index.html) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class='bx bxl-codepen'></i>
+                    </div>
+                    <span>CelestAI</span>
+                </div>
+            </div>
+
+            <button class="new-chat-btn" onclick="window.location.href='{% url 'assistant:index' %}'">
+                <i class='bx bx-plus'></i>
+                <span>New Chat</span>
+            </button>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="section-label">Menu</span>
+                    <a href="{% url 'assistant:dashboard' %}" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                        <i class='bx bx-grid-alt'></i> Dashboard
+                    </a>
+                    <a href="#" class="nav-item"><i class='bx bx-file'></i> Documents</a>
+                    <a href="{% url 'assistant:index' %}" class="nav-item {% if active_page == 'chats' %}active{% endif %}">
+                        <i class='bx bx-message-square-dots'></i> Chats
+                    </a>
+                    <a href="#" class="nav-item"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
+                </div>
+
+                <div class="nav-section history-section">
+                    <span class="section-label">Recent Chats</span>
+                    <div class="history-list" id="history-list">
+                        {% for session in sessions %}
+                        <div class="history-item-wrapper" data-session-id="{{ session.id }}">
+                            <a href="{% url 'assistant:index' %}?session={{ session.id }}" class="history-item">
+                                <i class='bx bx-message-detail'></i>
+                                <span class="chat-title">{{ session.title }}</span>
+                            </a>
+                        </div>
+                        {% empty %}
+                        <p class="empty-history">No conversations yet</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="nav-section bottom-nav">
+                    <a href="#" class="nav-item"><i class='bx bx-bell'></i> Notifications</a>
+                    <a href="#" class="nav-item"><i class='bx bx-cog'></i> Settings</a>
+                    <div class="user-profile-mini">
+                        <img src="https://i.pravatar.cc/150?img=11" alt="User" class="avatar">
+                        <div class="user-info">
+                            <span class="user-name">{{ display_name|default:"Enterprise User" }}</span>
+                            <span class="user-status">Pro Plan</span>
+                        </div>
+                        <a href="{% url 'assistant:logout' %}" class="logout-btn"><i class='bx bx-log-out'></i></a>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- MAIN DASHBOARD CONTENT -->
+        <main class="dashboard-main">
+            <header class="dashboard-header">
+                <div class="header-welcome">
+                    <h1>Enterprise Overview</h1>
+                    <p>Welcome back, {{ display_name }}. Here's what's happening today.</p>
+                </div>
+                <div class="header-actions">
+                    <button class="action-btn-outline"><i class='bx bx-calendar'></i> Last 30 Days</button>
+                    <button class="action-btn-primary"><i class='bx bx-export'></i> Export Report</button>
+                </div>
+            </header>
+
+            <div class="dashboard-content-scroll">
+                <!-- Analytics Cards -->
+                <div class="analytics-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class='bx bx-user-voice'></i></div>
+                        <div class="stat-info">
+                            <h3>{{ analytics.total_employees }}</h3>
+                            <p>Total Employees</p>
+                        </div>
+                        <div class="stat-trend positive">+4%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class='bx bx-calendar-check'></i></div>
+                        <div class="stat-info">
+                            <h3>{{ analytics.attendance_rate }}</h3>
+                            <p>Attendance Rate</p>
+                        </div>
+                        <div class="stat-trend positive">+1.2%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class='bx bx-rocket'></i></div>
+                        <div class="stat-info">
+                            <h3>{{ analytics.active_projects }}</h3>
+                            <p>Active Projects</p>
+                        </div>
+                        <div class="stat-trend neutral">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class='bx bx-cloud-upload'></i></div>
+                        <div class="stat-info">
+                            <h3>{{ analytics.docs_uploaded }}</h3>
+                            <p>Docs Uploaded</p>
+                        </div>
+                        <div class="stat-trend positive">+12%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple-glow"><i class='bx bx-brain'></i></div>
+                        <div class="stat-info">
+                            <h3>{{ analytics.ai_queries }}</h3>
+                            <p>AI Queries Today</p>
+                        </div>
+                        <div class="stat-trend positive">+24%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue-glow"><i class='bx bx-dollar-circle'></i></div>
+                        <div class="stat-info">
+                            <h3>{{ analytics.revenue }}</h3>
+                            <p>Revenue Overview</p>
+                        </div>
+                        <div class="stat-trend positive">+8.5%</div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-section">
+                    <div class="glass-panel main-chart">
+                        <div class="panel-header">
+                            <h3>Company Activity</h3>
+                            <div class="chart-legend">
+                                <span class="legend-item"><i class="dot ai"></i> AI Usage</span>
+                                <span class="legend-item"><i class="dot docs"></i> Uploads</span>
+                            </div>
+                        </div>
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                    <div class="glass-panel side-chart">
+                        <div class="panel-header">
+                            <h3>Usage Distribution</h3>
+                        </div>
+                        <canvas id="distributionChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid-two-cols">
+                    <!-- Attendance Table -->
+                    <div class="glass-panel table-panel">
+                        <div class="panel-header">
+                            <h3>Employee Attendance</h3>
+                            <button class="view-all">View All</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Department</th>
+                                        <th>Attendance</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>
+                                            <div class="user-cell">
+                                                <img src="https://i.pravatar.cc/150?img=1" alt="">
+                                                <span>Alex Johnson</span>
+                                            </div>
+                                        </td>
+                                        <td>Engineering</td>
+                                        <td>
+                                            <div class="progress-bar-small"><div class="fill" style="width: 95%;"></div></div>
+                                        </td>
+                                        <td><span class="badge present">Present</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="user-cell">
+                                                <img src="https://i.pravatar.cc/150?img=2" alt="">
+                                                <span>Sarah Smith</span>
+                                            </div>
+                                        </td>
+                                        <td>Product</td>
+                                        <td>
+                                            <div class="progress-bar-small"><div class="fill" style="width: 88%;"></div></div>
+                                        </td>
+                                        <td><span class="badge present">Present</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <div class="user-cell">
+                                                <img src="https://i.pravatar.cc/150?img=3" alt="">
+                                                <span>Michael Chen</span>
+                                            </div>
+                                        </td>
+                                        <td>Marketing</td>
+                                        <td>
+                                            <div class="progress-bar-small"><div class="fill" style="width: 45%;"></div></div>
+                                        </td>
+                                        <td><span class="badge absent">Absent</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Recent Documents & Notifications -->
+                    <div class="side-panels-column">
+                        <div class="glass-panel">
+                            <div class="panel-header">
+                                <h3>Quick Actions</h3>
+                            </div>
+                            <div class="quick-actions-grid">
+                                <button class="qa-btn"><i class='bx bx-upload'></i> Upload</button>
+                                <button class="qa-btn"><i class='bx bx-file-find'></i> Analyze</button>
+                                <button class="qa-btn"><i class='bx bx-user-plus'></i> Add User</button>
+                                <button class="qa-btn"><i class='bx bx-cog'></i> Config</button>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel">
+                            <div class="panel-header">
+                                <h3>Recent Alerts</h3>
+                            </div>
+                            <div class="alerts-list">
+                                <div class="alert-item">
+                                    <div class="alert-icon blue"><i class='bx bx-info-circle'></i></div>
+                                    <div class="alert-content">
+                                        <p>New document: <strong>Quarterly_Report.pdf</strong></p>
+                                        <span>2 mins ago</span>
+                                    </div>
+                                </div>
+                                <div class="alert-item">
+                                    <div class="alert-icon purple"><i class='bx bx-bot'></i></div>
+                                    <div class="alert-content">
+                                        <p>AI generated 5 resume summaries</p>
+                                        <span>15 mins ago</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- RIGHT VOICE PANEL (Consistent with index.html) -->
+        <aside class="voice-panel">
+            <div class="voice-header">
+                <h3>Dashboard Assistant</h3>
+                <div class="voice-status">
+                    <span class="pulse-dot"></span>
+                    <span>Ready</span>
+                </div>
+            </div>
+
+            <div class="voice-visualizer-container">
+                <div class="glass-card mic-card">
+                    <div class="mic-glow"></div>
+                    <button class="main-mic-btn" id="main-mic-btn">
+                        <i class='bx bx-microphone'></i>
+                    </button>
+                </div>
+                <p class="mic-instruction">Ask about analytics</p>
+            </div>
+
+            <div class="voice-suggestions">
+                <h4>Try saying...</h4>
+                <div class="voice-suggestion-item">
+                    <i class='bx bx-play'></i>
+                    <span>"Compare attendance to last week"</span>
+                </div>
+                <div class="voice-suggestion-item">
+                    <i class='bx bx-play'></i>
+                    <span>"Summarize latest document"</span>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script src="{% static 'js/dashboard.js' %}"></script>
+</body>
+</html>

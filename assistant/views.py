@@ -88,7 +88,52 @@ def index(request):
         'full_history_json': full_history_json,
         'current_session_id': current_session_id,
         'display_name': display_name,
-        'is_logged_in': user_id is not None
+        'is_logged_in': user_id is not None,
+        'active_page': 'chats'
+    })
+
+@session_login_required
+def dashboard(request):
+    from django.contrib.auth.models import User
+    from django.db.models import Max
+    
+    sessions_list = []
+    display_name = "Guest"
+    user_id = request.session.get("user_id")
+
+    if user_id:
+        try:
+            custom_user = CustomUser.objects.get(id=user_id)
+            display_name = custom_user.name or custom_user.email
+            django_user, _ = User.objects.get_or_create(username=custom_user.email, email=custom_user.email)
+            
+            session_ids = ChatHistory.objects.filter(user=django_user).values('session_id').annotate(latest=Max('timestamp')).order_by('-latest')
+            for sess_data in session_ids:
+                sid = sess_data['session_id']
+                if sid:
+                    first_msg = ChatHistory.objects.filter(user=django_user, session_id=sid).first()
+                    sessions_list.append({
+                        'id': sid,
+                        'title': first_msg.session_title if first_msg else "New Chat"
+                    })
+        except Exception as e:
+            print(f"Error loading dashboard: {e}")
+
+    # Mock data for analytics
+    analytics = {
+        'total_employees': 124,
+        'attendance_rate': '94%',
+        'active_projects': 12,
+        'docs_uploaded': 458,
+        'ai_queries': 1240,
+        'revenue': '$45,200'
+    }
+
+    return render(request, 'assistant/dashboard.html', {
+        'sessions': sessions_list,
+        'display_name': display_name,
+        'analytics': analytics,
+        'active_page': 'dashboard'
     })
 
 @csrf_exempt
@@ -132,8 +177,8 @@ def ask(request):
 
             # 2. Get Contextual Data
             user_name_obj = UserMemory.objects.filter(user=django_user, key='name').first()
-            user_name = user_name_obj.value if user_name_obj else None
-            user_memory_context = f"User's name is {user_name}." if user_name else "I don't know the user's name yet."
+            user_name = user_name_obj.value if user_name_obj else custom_user.name
+            user_memory_context = user_name if user_name else "Guest"
             
             # Context only from the CURRENT session
             history_objs = ChatHistory.objects.filter(user=django_user, session_id=session_id).order_by('-timestamp')[:10]
@@ -143,10 +188,20 @@ def ask(request):
 
     # 3. Get Answer from RAG Engine
     try:
+        global rag_engine
+        if rag_engine is None:
+            from .rag_engine import RAGEngine
+            rag_engine = RAGEngine()
+            
         answer = rag_engine.get_answer(question, user_memory_context, chat_history_str)
     except Exception as e:
-        print(f"Error in RAG Engine: {str(e)}")
-        return JsonResponse({"error": str(e), "answer": "I encountered an internal error."}, status=500)
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"CRITICAL ERROR in RAG Engine:\n{error_details}")
+        return JsonResponse({
+            "error": str(e), 
+            "answer": "I encountered an internal error. Please check the server logs."
+        }, status=500)
 
     # 4. Log to DB if logged in
     if django_user:
@@ -179,7 +234,15 @@ def reset(request):
 @csrf_exempt
 @session_login_required
 def delete_session(request):
-    session_id = request.GET.get('session_id')
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST method required"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        session_id = data.get('session_id')
+    except:
+        session_id = request.GET.get('session_id')
+
     if not session_id:
         return JsonResponse({"error": "No session ID provided"}, status=400)
     
@@ -189,6 +252,29 @@ def delete_session(request):
     
     deleted_count, _ = ChatHistory.objects.filter(user=django_user, session_id=session_id).delete()
     return JsonResponse({"message": f"Session deleted successfully. {deleted_count} messages removed."})
+
+@csrf_exempt
+@session_login_required
+def rename_session(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST method required"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        session_id = data.get('session_id')
+        new_title = data.get('title')
+    except:
+        return JsonResponse({"error": "Invalid data"}, status=400)
+
+    if not session_id or not new_title:
+        return JsonResponse({"error": "Session ID and title required"}, status=400)
+    
+    from django.contrib.auth.models import User
+    custom_user = CustomUser.objects.get(id=request.session["user_id"])
+    django_user = User.objects.get(username=custom_user.email)
+    
+    ChatHistory.objects.filter(user=django_user, session_id=session_id).update(session_title=new_title)
+    return JsonResponse({"message": "Session renamed successfully."})
 
 def generate_captcha():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))

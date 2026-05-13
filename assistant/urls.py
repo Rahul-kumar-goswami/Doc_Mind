@@ -5,9 +5,11 @@ app_name = 'assistant'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('dashboard/', views.dashboard, name='dashboard'),
     path('ask/', views.ask, name='ask'),
     path('reset/', views.reset, name='reset'),
     path('delete-session/', views.delete_session, name='delete_session'),
+    path('rename-session/', views.rename_session, name='rename_session'),
 
     # Auth URLs
     path('login/', views.login_view, name='login'),

@@ -1,157 +1,252 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CelestAI - Dashboard</title>
-
-    <!-- External CSS & Fonts -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>CelestAI | Professional AI Assistant</title>
+    {% load static %}
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
-
-    <!-- CSRF Token for JS -->
-    <script>
-        const CSRF_TOKEN = "{{ csrf_token }}";
-        const FULL_HISTORY = {{ full_history_json|safe }};
-        const CURRENT_SESSION_ID = "{{ current_session_id|default:'' }}";
-        // Apply theme immediately to prevent flash
-        const theme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- SweetAlert2 for professional prompts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-
 <body>
+    <div class="app-container">
+        <!-- Ambient Background Glows -->
+        <div class="ambient-glow glow-1"></div>
+        <div class="ambient-glow glow-2"></div>
+        <div class="ambient-glow glow-3"></div>
 
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="brand-container">
-            <div class="flex items-center gap-3">
-                <div class="brand-logo"><i class="fas fa-star"></i></div>
-                <div class="brand-name">CelestAI</div>
+        <!-- LEFT SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class='bx bxl-codepen'></i>
+                    </div>
+                    <span>CelestAI</span>
+                </div>
             </div>
-            <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
-                <button id="themeToggleBtn" class="logout-btn" title="Toggle Theme" style="font-size: 0.9rem;">
-                    <i class="fas fa-moon"></i>
-                </button>
-                <button id="refreshChatBtn" class="logout-btn" title="Reset Chat" style="font-size: 0.9rem;">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
-            </div>
-        </div>
 
-        <div class="new-chat-container">
-            <button class="btn-new-chat" id="newChatBtn">
-                <i class="fas fa-plus"></i>
+            <button class="new-chat-btn" id="new-chat-btn">
+                <i class='bx bx-plus'></i>
                 <span>New Chat</span>
             </button>
-        </div>
 
-        <div class="chat-history" id="chatHistory">
-            {% if is_logged_in %}
-                <!-- New Chat indicator -->
-                <a href="/" class="history-item {% if not current_session_id %}active{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
-                    <i class="fas fa-plus-circle" style="margin-right: 10px;"></i>
-                    <span>New Chat</span>
-                </a>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="section-label">Menu</span>
+                    <a href="{% url 'assistant:dashboard' %}" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                        <i class='bx bx-grid-alt'></i> Dashboard
+                    </a>
+                    <a href="#" class="nav-item"><i class='bx bx-file'></i> Documents</a>
+                    <a href="{% url 'assistant:index' %}" class="nav-item {% if active_page == 'chats' %}active{% endif %}">
+                        <i class='bx bx-message-square-dots'></i> Chats
+                    </a>
+                    <a href="#" class="nav-item"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
+                </div>
 
-                {% if sessions %}
-                    <div class="history-section-title" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;">Recent Chats</div>
-                    {% for session in sessions %}
-                    <div class="history-item-container" style="position: relative; display: flex; align-items: center; margin-bottom: 4px;">
-                        <a href="?session={{ session.id }}" class="history-item {% if session.id == current_session_id %}active{% endif %}" style="text-decoration: none; color: inherit; display: flex; align-items: center; flex: 1; min-width: 0;">
-                            <i class="fas fa-message" style="margin-right: 10px;"></i>
-                            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ session.title }}</span>
-                        </a>
-                        <button class="session-menu-btn" data-session-id="{{ session.id }}" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; opacity: 0; transition: opacity 0.2s;">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <div class="session-dropdown" id="dropdown-{{ session.id }}" style="display: none; position: absolute; right: 0; top: 100%; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 8px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;">
-                            <button class="delete-session-item" data-session-id="{{ session.id }}" style="width: 100%; text-align: left; padding: 10px 16px; background: transparent; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-trash-alt"></i>
-                                <span>Delete Chat</span>
+                <div class="nav-section history-section">
+                    <span class="section-label">Recent Chats</span>
+                    <div class="history-list" id="history-list">
+                        {% for session in sessions %}
+                        <div class="history-item-wrapper {% if current_session_id == session.id %}active{% endif %}" data-session-id="{{ session.id }}">
+                            <a href="?session={{ session.id }}" class="history-item">
+                                <i class='bx bx-message-detail'></i>
+                                <span class="chat-title">{{ session.title }}</span>
+                            </a>
+                            <div class="item-actions">
+                                <button class="action-trigger"><i class='bx bx-dots-vertical-rounded'></i></button>
+                                <div class="action-dropdown">
+                                    <button class="rename-chat"><i class='bx bx-edit-alt'></i> Rename</button>
+                                    <button class="delete-chat"><i class='bx bx-trash'></i> Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="empty-history">No conversations yet</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="nav-section bottom-nav">
+                    <a href="#" class="nav-item"><i class='bx bx-bell'></i> Notifications</a>
+                    <a href="#" class="nav-item"><i class='bx bx-cog'></i> Settings</a>
+                    <div class="user-profile-mini">
+                        <img src="https://i.pravatar.cc/150?img=11" alt="User" class="avatar">
+                        <div class="user-info">
+                            <span class="user-name">{{ display_name|default:"Enterprise User" }}</span>
+                            <span class="user-status">Pro Plan</span>
+                        </div>
+                        <a href="{% url 'assistant:logout' %}" class="logout-btn"><i class='bx bx-log-out'></i></a>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- MAIN CHAT AREA -->
+        <main class="chat-container">
+            <header class="chat-header">
+                <div class="header-left">
+                    <div class="model-badge">
+                        <i class='bx bxs-bolt'></i>
+                        <span>Celest-4.0 Ultra</span>
+                        <i class='bx bx-chevron-down'></i>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn"><i class='bx bx-export'></i> Share</button>
+                    <button class="header-btn"><i class='bx bx-info-circle'></i></button>
+                </div>
+            </header>
+
+            <div class="chat-messages" id="chat-messages">
+                <!-- Welcome State -->
+                <div class="welcome-screen" id="welcome-screen">
+                    <div class="welcome-icon">
+                        <i class='bx bxs-bot'></i>
+                    </div>
+                    <h1>How can I assist you today?</h1>
+                    <p>I'm your enterprise AI assistant, ready to help with data analysis, documents, and more.</p>
+                    
+                    <div class="suggestion-grid">
+                        <div class="suggestion-card">
+                            <i class='bx bx-table'></i>
+                            <span>Analyze my matriculation results</span>
+                        </div>
+                        <div class="suggestion-card">
+                            <i class='bx bx-code-alt'></i>
+                            <span>Show my technical skills</span>
+                        </div>
+                        <div class="suggestion-card">
+                            <i class='bx bx-briefcase-alt-2'></i>
+                            <span>Summarize my recent projects</span>
+                        </div>
+                        <div class="suggestion-card">
+                            <i class='bx bx-certification'></i>
+                            <span>Check my NPTEL certification scores</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-container-wrapper">
+                    <div class="input-container">
+                        <div class="input-actions-left">
+                            <button class="input-action-btn"><i class='bx bx-paperclip'></i></button>
+                        </div>
+                        <textarea id="chat-input" placeholder="Message CelestAI..." rows="1"></textarea>
+                        <div class="input-actions-right">
+                            <button class="input-action-btn voice-trigger"><i class='bx bx-microphone'></i></button>
+                            <button class="send-btn" id="send-btn">
+                                <i class='bx bxs-upvote'></i>
                             </button>
                         </div>
                     </div>
-                    {% endfor %}
-                {% endif %}
-            {% else %}
-            <div class="p-4 text-xs text-text-muted text-center italic">Login to see history</div>
-            {% endif %}
-        </div>
-
-        <div class="sidebar-footer">
-            {% if is_logged_in %}
-            <div class="user-profile">
-                <div class="user-avatar">{{ display_name|slice:":1"|upper }}</div>
-                <div class="user-name">{{ display_name|capfirst }}</div>
-            </div>
-            <form action="{% url 'assistant:logout' %}" method="post" id="logoutForm">
-                {% csrf_token %}
-                <button type="submit" class="logout-btn" title="Logout">
-                    <i class="fas fa-power-off"></i>
-                </button>
-            </form>
-            {% else %}
-            <div class="user-profile">
-                <div class="user-avatar"><i class="fas fa-user-secret"></i></div>
-                <div class="user-name">Guest User</div>
-            </div>
-            <a href="{% url 'assistant:login' %}" class="logout-btn" title="Login">
-                <i class="fas fa-sign-in-alt"></i>
-            </a>
-            {% endif %}
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-
-        <!-- Welcome Screen -->
-        <div class="welcome-container" id="welcomeScreen">
-            <div class="welcome-greeting"><span id="timeGreeting">Good Afternoon</span>, <span>{{ display_name|capfirst
-                    }}</span></div>
-            <div class="welcome-title">How can I help you Today?</div>
-            <div class="welcome-subtitle">
-                Ask me anything about your documents or start a new conversation.
-            </div>
-
-            <div class="suggested-actions">
-                <button class="suggest-btn"><i class="fas fa-comments"></i> Let's talk about..</button>
-                <button class="suggest-btn"><i class="fas fa-lightbulb"></i> Help me with..</button>
-                <button class="suggest-btn"><i class="fas fa-graduation-cap"></i> Teach me to..</button>
-            </div>
-        </div>
-
-        <!-- Chat Area -->
-        <div class="chat-container" id="chatContainer">
-            <!-- Messages will be injected here -->
-        </div>
-
-        <!-- Input Area -->
-        <div class="input-area">
-            <div class="input-row">
-                <div class="input-container-pill">
-                    <textarea id="userInput" placeholder="Type a prompt..." rows="1"></textarea>
-                    <button id="sendBtnPill">
-                        <i class="fas fa-arrow-up"></i>
-                    </button>
                 </div>
+                <p class="input-footer">CelestAI may provide inaccurate information. Verify important details.</p>
+            </div>
+        </main>
 
-                <button id="micBtnPill" title="Voice Input">
-                    <i class="fas fa-microphone"></i>
-                </button>
+        <!-- RIGHT VOICE PANEL -->
+        <aside class="voice-panel">
+            <div class="voice-header">
+                <h3>AI Voice Assistant</h3>
+                <div class="voice-status">
+                    <span class="pulse-dot"></span>
+                    <span>System Ready</span>
+                </div>
             </div>
 
-            <div class="text-center mt-4 text-[10px] text-text-muted">
-                CelestAI can make mistakes. Check important info.
+            <div class="voice-visualizer-container">
+                <div class="glass-card mic-card">
+                    <div class="mic-glow"></div>
+                    <div class="mic-circles">
+                        <div class="circle c-1"></div>
+                        <div class="circle c-2"></div>
+                        <div class="circle c-3"></div>
+                    </div>
+                    <button class="main-mic-btn" id="main-mic-btn">
+                        <i class='bx bx-microphone'></i>
+                    </button>
+                    
+                    <div class="waveform hidden" id="waveform">
+                        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+                <p class="mic-instruction" id="mic-status-text">Click to start conversation</p>
+            </div>
+
+            <div class="voice-controls">
+                <div class="control-row">
+                    <span>Volume</span>
+                    <div class="volume-slider">
+                        <div class="slider-fill" style="width: 70%;"></div>
+                    </div>
+                </div>
+                <button class="stop-speaking-btn"><i class='bx bx-stop-circle'></i> Stop Speaking</button>
+            </div>
+
+            <div class="voice-suggestions">
+                <h4>Try saying...</h4>
+                <div class="voice-suggestion-item">
+                    <i class='bx bx-play'></i>
+                    <span>"List my academic achievements"</span>
+                </div>
+                <div class="voice-suggestion-item">
+                    <i class='bx bx-play'></i>
+                    <span>"What are my top 5 skills?"</span>
+                </div>
+            </div>
+
+            <div class="glass-card info-card">
+                <div class="info-icon"><i class='bx bx-brain'></i></div>
+                <div class="info-content">
+                    <h5>Context Aware</h5>
+                    <p>I'm processing your active session to give tailored responses.</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Hidden templates for JS -->
+    <template id="ai-message-template">
+        <div class="message ai">
+            <div class="message-avatar">
+                <i class='bx bxs-bot'></i>
+            </div>
+            <div class="message-wrapper">
+                <div class="message-content"></div>
+                <div class="message-actions">
+                    <button title="Like"><i class='bx bx-like'></i></button>
+                    <button title="Dislike"><i class='bx bx-dislike'></i></button>
+                    <button class="copy-msg" title="Copy"><i class='bx bx-copy'></i></button>
+                    <button class="regenerate-msg" title="Regenerate"><i class='bx bx-refresh'></i></button>
+                </div>
             </div>
         </div>
-    </main>
+    </template>
 
-    <!-- App Script -->
+    <template id="user-message-template">
+        <div class="message user">
+            <div class="message-wrapper">
+                <div class="message-content"></div>
+            </div>
+            <div class="message-avatar">
+                <img src="https://i.pravatar.cc/150?img=11" alt="User">
+            </div>
+        </div>
+    </template>
+
     <script src="{% static 'js/script.js' %}"></script>
+    <script>
+        // Inject history from Django
+        window.CHAT_HISTORY = JSON.parse('{{ full_history_json|safe|escapejs }}');
+        window.CURRENT_SESSION_ID = "{{ current_session_id|default:'' }}";
+    </script>
 </body>
-
 </html>

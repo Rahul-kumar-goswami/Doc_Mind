@@ -66,6 +66,21 @@
             <div class="title">
                 <h1>Login Form</h1>
             </div>
+            
+            {% if error %}
+            <div class="error-msg" style="color: #ff4d4d; background: rgba(255, 77, 77, 0.1); padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-size: 14px; border: 1px solid rgba(255, 77, 77, 0.2);">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            {% if messages %}
+            {% for message in messages %}
+            <div class="info-msg" style="color: #45f3ff; background: rgba(69, 243, 255, 0.1); padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-size: 14px; border: 1px solid rgba(69, 243, 255, 0.2);">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+
             <div class="input-box">
                 <label class="label-color">Username</label>
                 <input type="text" name="email" placeholder="Username" autocomplete="username" required>

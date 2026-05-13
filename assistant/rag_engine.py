@@ -38,11 +38,11 @@ class RAGEngine:
         self.vector_store = None
         self.load_vector_store()
         
-        # Initialize Groq LLM
+        # Initialize Groq LLM - Zero temperature for maximum professionalism
         self.llm = ChatGroq(
             groq_api_key=GROQ_API_KEY,
             model_name="llama-3.1-8b-instant",
-            temperature=0.2
+            temperature=0.0
         )
 
     def load_vector_store(self):
@@ -56,28 +56,12 @@ class RAGEngine:
             self.vector_store = None
 
     def clean_text(self, text):
-        """
-        Fixes 'spaced out' text where characters are separated by spaces.
-        Example: 'C G P A  -  8 . 7 7' -> 'CGPA - 8.77'
-        """
         import re
-        
-        # Heuristic: If there are many single characters followed by a space, it's likely spaced out
-        # We look for patterns like 'A B C ' and join them
-        # This regex matches a single character followed by a space, repeatedly
-        # and joins them together.
-        
         def de_space(match):
             return match.group(0).replace(" ", "")
-
-        # Join single characters that are separated by a single space
-        # Pattern: (Character followed by Space) repeated 2+ times, ending with a Character
         cleaned = re.sub(r'(\b\w )+\w\b', de_space, text)
-        
-        # Also handle specific cases like '8 . 7 7' -> '8.77'
         cleaned = re.sub(r'(\d )+\. (\d )+\d', lambda m: m.group(0).replace(" ", ""), cleaned)
         cleaned = re.sub(r'(\d )+\d', lambda m: m.group(0).replace(" ", ""), cleaned)
-        
         return cleaned
 
     def ingest_document(self, file_path):
@@ -87,45 +71,33 @@ class RAGEngine:
             loader = Docx2txtLoader(file_path)
         else:
             raise ValueError("Unsupported file format.")
-
         documents = loader.load()
-        
-        # Clean the text in each document
         for doc in documents:
             doc.page_content = self.clean_text(doc.page_content)
-
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
         chunks = text_splitter.split_documents(documents)
-
         if self.vector_store:
             self.vector_store.add_documents(chunks)
         else:
             self.vector_store = FAISS.from_documents(chunks, self.embeddings)
-        
         self.vector_store.save_local(VECTOR_DB_DIR)
 
     def delete_document(self, file_path):
         if not self.vector_store:
             return
-
-        # Find IDs of documents with the matching source metadata
         ids_to_delete = []
         docstore = self.vector_store.docstore
-        
         if hasattr(docstore, '_dict'):
             for doc_id, doc in docstore._dict.items():
                 if doc.metadata.get('source') == file_path:
                     ids_to_delete.append(doc_id)
-        
         if ids_to_delete:
             self.vector_store.delete(ids_to_delete)
             self.vector_store.save_local(VECTOR_DB_DIR)
-            print(f"Deleted {len(ids_to_delete)} chunks for {file_path}")
         else:
             print(f"No chunks found for {file_path}")
 
     def get_answer(self, question, user_memory_context="", chat_history_context=""):
-        # Retrieve relevant context from vector store
         context = ""
         if self.vector_store:
             docs = self.vector_store.similarity_search(question, k=3)
@@ -138,69 +110,67 @@ class RAGEngine:
                 context_list.append(f"--- Document: {source} | Page: {page} ---\n{doc.page_content}")
             context = "\n\n".join(context_list)
 
-        # DocuMind Enterprise Prompt
+        # CelestAI Core Behavior Rules - Version 10.0
         prompt_template = """
-You are DocuMind Enterprise, a warm, friendly, and highly helpful assistant. Your goal is to make the user feel comfortable and supported while providing accurate information from their documents.
+You are CelestAI, a smart, helpful, and professional AI Assistant.
+Your primary goal is to provide accurate answers based on the provided document context.
 
-Follow these rules strictly:
+========================================
+CONVERSATIONAL GUIDELINES
+========================================
 
-1. Greeting & Personality:
-- Be cheerful and welcoming! Use a friendly tone that makes people enjoy talking to you.
-- Use occasional friendly emojis (like 😊, ✨, 📄) to keep the conversation lively.
-- If the user says "hi", "hello", or similar greetings:
-  → Respond with a warm, personalized greeting.
-  → Example: "Hello there! 😊 I'm DocuMind Enterprise, your friendly document assistant. How can I help you today?"
+1. NATURAL GREETINGS & ENDINGS
+- Start with a warm greeting if the user starts the conversation (e.g., "Hi {name}!", "Hello!").
+- End your responses politely (e.g., "Hope this helps!", "Done.", "Have a good day!", "Let me know if you need anything else.").
+- If the user says something like "Good", "Thanks", or "Bye", respond naturally (e.g., "You're welcome!", "Glad I could help!", "Goodbye!").
 
-2. Context-Based Answers:
-- Only answer using the provided context.
-- If context is available, provide a clear, helpful, and naturally phrased answer.
-- Always include the source information in a clean format:
-  📄 Source: <document_name> | Page: <page_number>
+2. ACCURATE & CONTEXTUAL ANSWERS
+- Use the DOCUMENT CONTEXT to answer questions accurately.
+- If the information is not in the context, politely state that you don't have that information in the current documents.
+- For education details (marks, grades, etc.), use Markdown Tables.
 
-3. Strict Guardrails:
-- If the answer is NOT found in the context:
-  → Say something like: "I'm sorry, I couldn't find that information in the documents I have. I can only help with what's in your uploaded files! Is there anything else I can look up for you? ✨"
+3. SMART INTENT DETECTION
+- Handle typos and casual language gracefully.
+- Do NOT repeat the same information if the user is just acknowledging your previous answer.
 
-4. Conversational Flow:
-- Do not repeat greetings if you've already greeted the user in the chat history.
-- Keep answers concise but friendly.
-- If you're using the user's name, use it naturally.
+4. SUBTLE CITATIONS
+- Only include a source citation if you used the document context to answer.
+- Format: 📄 Source: <filename> | Page: <page>
 
----
-Chat History:
-{chat_history}
+========================================
+USER INFO: {name}
+========================================
 
----
-Context:
+========================================
+DOCUMENT CONTEXT
+========================================
 {context}
 
----
-User Question:
-{question}
+========================================
+CHAT HISTORY
+========================================
+{chat_history}
 
----
-Final Answer:
+========================================
+USER QUESTION: {question}
+========================================
+
+FINAL ANSWER:
 """
-
         prompt = PromptTemplate(
             template=prompt_template, 
-            input_variables=["chat_history", "context", "question"]
+            input_variables=["name", "chat_history", "context", "question"]
         )
-        
         chain = LLMChain(llm=self.llm, prompt=prompt)
         response = chain.invoke({
+            "name": user_memory_context, # Assuming user_memory_context contains the name
             "chat_history": chat_history_context,
             "context": context,
             "question": question
         })
-
         return response["text"]
 
-# Singleton instance initialization
-# We check RUN_MAIN to ensure it only loads once in the worker process, not the reloader parent.
 if os.environ.get('RUN_MAIN') == 'true' or 'runserver' not in sys.argv:
-    print("Initializing RAG Engine (Loading Embeddings Model)...")
     rag_engine = RAGEngine()
 else:
-    # In the reloader parent process, we provide a placeholder
     rag_engine = None

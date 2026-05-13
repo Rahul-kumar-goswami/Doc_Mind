@@ -1,0 +1,58 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Error | CelestAI</title>
+    <link rel="stylesheet" href="{% static 'css/login.css' %}">
+    <style>
+        .error-container {
+            background: rgba(12, 12, 14, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 77, 77, 0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            backdrop-filter: blur(10px);
+        }
+        h1 { color: #ff4d4d; margin-bottom: 20px; font-size: 24px; }
+        p { color: #94a3b8; margin-bottom: 30px; line-height: 1.6; }
+        .error-detail {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            color: #ef4444;
+            font-family: monospace;
+            margin-bottom: 30px;
+            word-break: break-all;
+        }
+        .back-btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #8b5cf6;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: 0.3s;
+        }
+        .back-btn:hover { background: #7c3aed; transform: translateY(-2px); }
+    </style>
+</head>
+<body style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #05070a; margin: 0;">
+    <div class="error-container">
+        <h1>Login Failure</h1>
+        <p>We encountered an issue while trying to log you in with your social account. This usually happens due to configuration issues or if the login was cancelled.</p>
+        
+        {% if auth_error %}
+        <div class="error-detail">
+            Error: {{ auth_error.code }} - {{ auth_error.exception }}
+        </div>
+        {% endif %}
+
+        <a href="{% url 'assistant:login' %}" class="back-btn">Back to Login</a>
+    </div>
+</body>
+</html>

@@ -1,418 +1,393 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const chatContainer = document.getElementById('chatContainer');
-    const welcomeScreen = document.getElementById('welcomeScreen');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtnPill');
-    const micBtn = document.getElementById('micBtnPill');
-    const newChatBtn = document.getElementById('newChatBtn');
-    const menuBtn = document.getElementById('menuBtn');
-    const sidebar = document.getElementById('sidebar');
-    const refreshChatBtn = document.getElementById('refreshChatBtn');
-    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    // Elements
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const chatMessages = document.getElementById('chat-messages');
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const newChatBtn = document.getElementById('new-chat-btn');
+    const historyList = document.getElementById('history-list');
+    
+    const mainMicBtn = document.getElementById('main-mic-btn');
+    const micCard = document.querySelector('.mic-card');
+    const waveform = document.getElementById('waveform');
+    const micStatusText = document.getElementById('mic-status-text');
 
-    // --- Theme Management ---
-    const currentTheme = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    updateThemeIcon(currentTheme);
+    const aiTemplate = document.getElementById('ai-message-template');
+    const userTemplate = document.getElementById('user-message-template');
 
-    themeToggleBtn?.addEventListener('click', () => {
-        const theme = document.documentElement.getAttribute('data-theme');
-        const newTheme = theme === 'light' ? 'dark' : 'light';
-        
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-        updateThemeIcon(newTheme);
+    // State
+    let currentSessionId = window.CURRENT_SESSION_ID || null;
+    const chatHistory = window.CHAT_HISTORY || [];
+
+    // Initialize Markdown
+    marked.setOptions({
+        headerIds: false,
+        mangle: false,
+        breaks: true,
+        highlight: function(code, lang) {
+            return code; // Simplified for now, could add Prism.js later
+        }
     });
 
-    function updateThemeIcon(theme) {
-        if (!themeToggleBtn) return;
-        const icon = themeToggleBtn.querySelector('i');
-        if (theme === 'light') {
-            icon.className = 'fas fa-sun';
-        } else {
-            icon.className = 'fas fa-moon';
-        }
-    }
+    // --- Core Functions ---
 
-    let recognition;
-    const synth = window.speechSynthesis;
-    let voices = [];
+    function createMessageElement(content, role) {
+        const template = role === 'user' ? userTemplate : aiTemplate;
+        const clone = template.content.cloneNode(true);
+        const msgDiv = clone.querySelector('.message');
+        const contentDiv = clone.querySelector('.message-content');
 
-    function loadVoices() {
-        voices = synth.getVoices();
-    }
-
-    loadVoices();
-    if (synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = loadVoices;
-    }
-
-    let lastUserQuestion = ''; // Declare lastUserQuestion here
-
-    function speak(text, btn) {
-        if (!text) return;
-        
-        if (synth.speaking) {
-            const wasSpeakingThis = btn.classList.contains('active-speaking');
-            synth.cancel();
+        if (role === 'ai') {
+            contentDiv.innerHTML = marked.parse(content);
+            // Attach actions
+            const likeBtn = clone.querySelector('button[title="Like"]');
+            const dislikeBtn = clone.querySelector('button[title="Dislike"]');
             
-            // If it was already speaking THIS message, we just stop.
-            if (wasSpeakingThis) {
-                return; 
+            const feedbackToast = (text) => Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: text,
+                showConfirmButton: false,
+                timer: 1500,
+                background: '#111827',
+                color: '#fff'
+            });
+
+            if (likeBtn) likeBtn.addEventListener('click', () => feedbackToast('Thanks for your feedback!'));
+            if (dislikeBtn) dislikeBtn.addEventListener('click', () => feedbackToast('Sorry about that. We will improve.'));
+
+            const copyBtn = clone.querySelector('.copy-msg');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(content);
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Copied to clipboard',
+                        showConfirmButton: false,
+                        timer: 1500,
+                        background: '#111827',
+                        color: '#fff'
+                    });
+                });
             }
-        }
-        
-        // Reset all speak buttons
-        document.querySelectorAll('.speak-btn').forEach(b => {
-            b.classList.remove('active-speaking');
-            b.innerHTML = '<i class="fas fa-volume-up"></i>';
-        });
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        // Try to find a friendly, natural sounding voice
-        const preferredVoices = [
-            "Google US English",
-            "Microsoft Aria Online",
-            "Microsoft Zira",
-            "Microsoft Samantha",
-            "Samantha",
-            "Alex"
-        ];
-        
-        let selectedVoice = null;
-        for (let name of preferredVoices) {
-            selectedVoice = voices.find(v => v.name.includes(name));
-            if (selectedVoice) break;
-        }
-
-        if (!selectedVoice) {
-            selectedVoice = voices.find(v => v.lang.startsWith('en'));
-        }
-
-        if (selectedVoice) {
-            utterance.voice = selectedVoice;
-        }
-
-        // Adjust for a friendlier tone
-        utterance.pitch = 1.1; // Slightly higher pitch for friendliness
-        utterance.rate = 1.0;  // Normal rate
-        utterance.volume = 1.0;
-        
-        utterance.onstart = () => {
-            btn.classList.add('active-speaking');
-            btn.innerHTML = '<i class="fas fa-stop"></i>';
-        };
-        
-        utterance.onend = () => {
-            btn.classList.remove('active-speaking');
-            btn.innerHTML = '<i class="fas fa-volume-up"></i>';
-        };
-
-        synth.speak(utterance);
-    }
-
-    // --- Speech Recognition Setup ---
-    if ('webkitSpeechRecognition' in window) {
-        recognition = new webkitSpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-
-        recognition.onstart = () => {
-            micBtn.classList.add('active');
-            micBtn.style.color = '#ef4444';
-        };
-
-        recognition.onend = () => {
-            micBtn.classList.remove('active');
-            micBtn.style.color = '';
-        };
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            userInput.value = transcript;
-            userInput.dispatchEvent(new Event('input'));
-            sendQuestion();
-        };
-    }
-
-    micBtn.addEventListener('click', () => {
-        if (recognition) {
-            recognition.start();
+            const regenBtn = clone.querySelector('.regenerate-msg');
+            if (regenBtn) {
+                regenBtn.addEventListener('click', () => {
+                    const lastUserMsg = [...chatMessages.querySelectorAll('.message.user')].pop();
+                    if (lastUserMsg) {
+                        const text = lastUserMsg.querySelector('.message-content').innerText;
+                        sendMessage(text);
+                    }
+                });
+            }
         } else {
-            alert("Speech recognition not supported in this browser.");
-        }
-    });
-
-    function updateGreeting() {
-        const hour = new Date().getHours();
-        const greetingElement = document.getElementById('timeGreeting');
-        if (!greetingElement) return;
-
-        let greeting = "Good Evening";
-        if (hour < 12) greeting = "Good Morning";
-        else if (hour < 17) greeting = "Good Afternoon";
-        
-        greetingElement.innerText = greeting;
-    }
-    updateGreeting();
-
-    // --- UI Helpers ---
-    userInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-    });
-
-    function appendMessage(role, text, isTyping = false) {
-        // Hide welcome screen when first message is sent
-        if (welcomeScreen.style.display !== 'none') {
-            welcomeScreen.style.display = 'none';
-            chatContainer.style.display = 'block';
+            contentDiv.innerText = content;
         }
 
-        const row = document.createElement('div');
-        row.className = `message-row ${role}`;
-        
-        const content = document.createElement('div');
-        content.className = 'message-content';
-        
-        const avatar = document.createElement('div');
-        avatar.className = 'avatar';
-        avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-star"></i>';
-        
-        const textBlock = document.createElement('div');
-        textBlock.className = `text-block ${isTyping ? 'typing' : ''}`;
-        
-        if (!isTyping) {
-            textBlock.innerText = text;
-        }
-
-        content.appendChild(avatar);
-        content.appendChild(textBlock);
-        row.appendChild(content);
-        chatContainer.appendChild(row);
-
-        if (role === 'ai' && !isTyping) {
-            addMessageActions(textBlock, text);
-        }
-
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        return textBlock;
+        return msgDiv;
     }
 
-    function addMessageActions(container, text) {
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        actions.innerHTML = `
-            <button class="action-btn speak-btn" title="Listen"><i class="fas fa-volume-up"></i></button>
-            <button class="action-btn" title="Like"><i class="far fa-thumbs-up"></i></button>
-            <button class="action-btn" title="Dislike"><i class="far fa-thumbs-down"></i></button>
-            <button class="action-btn regenerate" title="Regenerate"><i class="fas fa-redo"></i></button>
-            <button class="action-btn copy" title="Copy"><i class="far fa-copy"></i></button>
-        `;
-
-        actions.querySelector('.speak-btn').addEventListener('click', function() {
-            speak(text, this);
-        });
-
-        actions.querySelector('.copy').addEventListener('click', () => {
-            navigator.clipboard.writeText(text);
-            const icon = actions.querySelector('.copy i');
-            icon.className = 'fas fa-check';
-            setTimeout(() => { icon.className = 'far fa-copy'; }, 2000);
-        });
-
-        actions.querySelector('.regenerate').addEventListener('click', () => {
-            if (lastUserQuestion) {
-                userInput.value = lastUserQuestion;
-                sendQuestion();
-            }
-        });
-
-        container.appendChild(actions);
+    function addMessageToUI(content, role, animate = true) {
+        if (welcomeScreen) welcomeScreen.style.display = 'none';
+        
+        const msgEl = createMessageElement(content, role);
+        if (!animate) msgEl.style.animation = 'none';
+        
+        chatMessages.appendChild(msgEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    async function typeWriter(element, text) {
-        element.classList.add('typing');
-        let i = 0;
-        element.innerText = '';
-        
-        return new Promise(resolve => {
-            function type() {
-                if (i < text.length) {
-                    element.innerText += text.charAt(i);
-                    i++;
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                    setTimeout(type, 15);
-                } else {
-                    element.classList.remove('typing');
-                    addMessageActions(element, text);
-                    resolve();
-                }
-            }
-            type();
-        });
-    }
-
-    let currentSessionId = typeof CURRENT_SESSION_ID !== 'undefined' ? CURRENT_SESSION_ID : '';
-
-    async function sendQuestion() {
-        const question = userInput.value.trim();
-        if (!question) return;
-
-        lastUserQuestion = question;
-        appendMessage('user', question);
-        
-        userInput.value = '';
-        userInput.style.height = 'auto';
-
-        const thinking = document.createElement('div');
-        thinking.className = 'message-row ai';
-        thinking.innerHTML = `
-            <div class="message-content">
-                <div class="avatar"><i class="fas fa-star"></i></div>
-                <div class="text-block typing">CelestAI is thinking...</div>
+    function showTypingIndicator() {
+        const div = document.createElement('div');
+        div.className = 'message ai typing-indicator';
+        div.id = 'typing-indicator';
+        div.innerHTML = `
+            <div class="message-avatar"><i class='bx bxs-bot'></i></div>
+            <div class="message-wrapper">
+                <div class="message-content">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
             </div>
         `;
-        chatContainer.appendChild(thinking);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+        const el = document.getElementById('typing-indicator');
+        if (el) el.remove();
+    }
+
+    let isProcessing = false;
+
+    async function sendMessage(text) {
+        if (!text || isProcessing) return;
+
+        isProcessing = true;
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.remove('active');
+
+        addMessageToUI(text, 'user');
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+
+        showTypingIndicator();
 
         try {
             const response = await fetch('/ask/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, session_id: currentSessionId })
+                body: JSON.stringify({
+                    question: text,
+                    session_id: currentSessionId
+                })
             });
+
             const data = await response.json();
-            
-            thinking.remove();
-            const aiTextElement = appendMessage('ai', '', true);
-            await typeWriter(aiTextElement, data.answer);
+            removeTypingIndicator();
 
-            // If a new session was created, update the URL and currentSessionId
-            if (data.session_id && currentSessionId !== data.session_id) {
-                currentSessionId = data.session_id;
-                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?session=' + currentSessionId;
-                window.history.pushState({ path: newUrl }, '', newUrl);
-                
-                // Reload after a short delay to let the user see the AI started responding,
-                // this ensures the sidebar gets the new title.
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
+            if (data.answer) {
+                addMessageToUI(data.answer, 'ai');
+
+                // Handle Guest Redirect (One-free-chat flow)
+                if (data.redirect) {
+                    setTimeout(() => {
+                        Swal.fire({
+                            title: 'Login to Continue',
+                            text: 'You have used your free guest query. Please login or sign up to continue the conversation and access the full dashboard.',
+                            icon: 'info',
+                            showCancelButton: true,
+                            confirmButtonText: 'Login / Sign Up',
+                            cancelButtonText: 'Stay here',
+                            background: '#111827',
+                            color: '#fff',
+                            confirmButtonColor: '#8b5cf6'
+                        }).then((result) => {
+                            isProcessing = false;
+                            chatInput.disabled = false;
+                            sendBtn.disabled = false;
+                            if (result.isConfirmed) {
+                                window.location.href = data.redirect;
+                            }
+                        });
+                    }, 2000);
+                    return;
+                }
+
+                if (data.session_id && !current_session_id) {
+                    currentSessionId = data.session_id;
+                    updateUrl(currentSessionId);
+                    // Refresh history sidebar
+                    setTimeout(() => window.location.reload(), 1000);
+                    // Keep disabled during reload
+                    return;
+                }
+            } else {
+                addMessageToUI("I'm sorry, I encountered an issue.", 'ai');
             }
-
-            if (data.redirect) {
-                // Show alert then redirect immediately after user clicks OK
-                alert("Please login to save your chat progress and continue the conversation!");
-                window.location.href = data.redirect;
-            }
-
         } catch (error) {
-            thinking.remove();
-            appendMessage('ai', 'Sorry, I encountered an error. Please try again.');
+            removeTypingIndicator();
+            // Only show error if not aborted by page reload
+            if (error.name !== 'AbortError') {
+                addMessageToUI("Error: Could not connect to server. Please check your connection.", 'ai');
+            }
+        } finally {
+            if (!current_session_id || window.location.search.includes('session=')) {
+                isProcessing = false;
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+            }
         }
     }
 
-    // Suggested actions
-    document.querySelectorAll('.suggest-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            userInput.value = btn.innerText.trim();
-            userInput.dispatchEvent(new Event('input'));
-            sendQuestion();
-        });
-    });
 
-    // --- Listeners ---
-    sendBtn.addEventListener('click', sendQuestion);
+    function updateUrl(sessionId) {
+        const newurl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?session=' + sessionId;
+        window.history.pushState({path:newurl},'',newurl);
+    }
 
-    refreshChatBtn?.addEventListener('click', async () => {
-        if (confirm("Reset current chat history?")) {
-            await fetch('/reset/', { method: 'POST' });
-            window.location.reload();
+    // --- Event Listeners ---
+
+    // Auto-resize input
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+        if (this.value.trim() !== "") {
+            sendBtn.classList.add('active');
+        } else {
+            sendBtn.classList.remove('active');
         }
     });
 
-    userInput.addEventListener('keydown', (e) => {
+    sendBtn.addEventListener('click', () => sendMessage(chatInput.value.trim()));
+
+    chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendQuestion();
+            sendMessage(chatInput.value.trim());
         }
     });
 
     newChatBtn.addEventListener('click', () => {
-        // Just navigate to the index page without a session parameter to start a fresh chat
         window.location.href = '/';
     });
 
-    menuBtn?.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-    });
-
-    // --- Session Menu & Deletion ---
-    document.querySelectorAll('.session-menu-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    // History Item Actions
+    document.querySelectorAll('.action-trigger').forEach(trigger => {
+        trigger.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const sid = btn.getAttribute('data-session-id');
-            const dropdown = document.getElementById(`dropdown-${sid}`);
-            
-            // Close all other dropdowns first
-            document.querySelectorAll('.session-dropdown').forEach(d => {
-                if (d !== dropdown) d.style.display = 'none';
+            // Close other dropdowns
+            document.querySelectorAll('.action-dropdown').forEach(d => {
+                if (d !== trigger.nextElementSibling) d.classList.remove('show');
             });
-
-            // Toggle current dropdown
-            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            trigger.nextElementSibling.classList.toggle('show');
         });
     });
 
-    document.querySelectorAll('.delete-session-item').forEach(btn => {
+    // Global click to close dropdowns
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.action-dropdown').forEach(d => d.classList.remove('show'));
+    });
+
+    // Delete Chat
+    document.querySelectorAll('.delete-chat').forEach(btn => {
         btn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const sid = btn.getAttribute('data-session-id');
-            if (confirm("Are you sure you want to delete this chat session?")) {
+            const wrapper = btn.closest('.history-item-wrapper');
+            const sessionId = wrapper.dataset.sessionId;
+
+            const result = await Swal.fire({
+                title: 'Delete Chat?',
+                text: "This action cannot be undone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            });
+
+            if (result.isConfirmed) {
                 try {
-                    const response = await fetch(`/delete-session/?session_id=${sid}`);
-                    const data = await response.json();
+                    const response = await fetch('/delete-session/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: sessionId })
+                    });
                     if (response.ok) {
-                        // If we are currently viewing this session, redirect to home
-                        if (CURRENT_SESSION_ID === sid) {
-                            window.location.href = '/';
-                        } else {
-                            window.location.reload();
-                        }
-                    } else {
-                        alert("Error deleting session: " + data.error);
+                        wrapper.remove();
+                        if (currentSessionId === sessionId) window.location.href = '/';
                     }
                 } catch (err) {
-                    alert("Failed to delete session.");
+                    console.error("Delete failed", err);
                 }
             }
         });
     });
 
-    // Close dropdowns on click outside (mobile)
-    document.addEventListener('click', (e) => {
-        // Close session dropdowns
-        if (!e.target.closest('.session-menu-btn') && !e.target.closest('.session-dropdown')) {
-            document.querySelectorAll('.session-dropdown').forEach(d => d.style.display = 'none');
-        }
+    // Rename Chat
+    document.querySelectorAll('.rename-chat').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const wrapper = btn.closest('.history-item-wrapper');
+            const sessionId = wrapper.dataset.sessionId;
+            const currentTitle = wrapper.querySelector('.chat-title').innerText;
 
-        if (window.innerWidth <= 768 && 
-            !sidebar.contains(e.target) && 
-            !menuBtn.contains(e.target) && 
-            sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
-        }
+            const { value: newTitle } = await Swal.fire({
+                title: 'Rename Chat',
+                input: 'text',
+                inputValue: currentTitle,
+                showCancelButton: true,
+                inputValidator: (value) => {
+                    if (!value) return 'You need to write something!'
+                }
+            });
+
+            if (newTitle && newTitle !== currentTitle) {
+                try {
+                    const response = await fetch('/rename-session/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: sessionId, title: newTitle })
+                    });
+                    if (response.ok) {
+                        wrapper.querySelector('.chat-title').innerText = newTitle;
+                    }
+                } catch (err) {
+                    console.error("Rename failed", err);
+                }
+            }
+        });
     });
 
-    // --- Initialize Full History ---
-    if (typeof FULL_HISTORY !== 'undefined' && FULL_HISTORY.length > 0) {
-        FULL_HISTORY.forEach(msg => {
-            appendMessage(msg.role, msg.content);
+    // Suggestion Cards
+    document.querySelectorAll('.suggestion-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const text = card.querySelector('span').innerText;
+            sendMessage(text);
         });
+    });
+
+    // Voice Recognition
+    let isListening = false;
+    let recognition;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+            isListening = true;
+            micCard.classList.add('mic-active');
+            waveform.classList.remove('hidden');
+            micStatusText.innerText = 'Listening...';
+        };
+
+        recognition.onresult = (event) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+                else interimTranscript += event.results[i][0].transcript;
+            }
+            if (finalTranscript) {
+                micStatusText.innerText = 'Processing...';
+                sendMessage(finalTranscript);
+            } else if (interimTranscript) {
+                micStatusText.innerText = interimTranscript;
+            }
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            micCard.classList.remove('mic-active');
+            waveform.classList.add('hidden');
+            if (micStatusText.innerText === 'Listening...') micStatusText.innerText = 'Click to start conversation';
+        };
+    }
+
+    mainMicBtn.addEventListener('click', () => {
+        if (!recognition) {
+            Swal.fire('Error', 'Speech recognition not supported in this browser.', 'error');
+            return;
+        }
+        isListening ? recognition.stop() : recognition.start();
+    });
+
+    document.querySelectorAll('.voice-suggestion-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const text = item.querySelector('span').innerText.replace(/"/g, '');
+            sendMessage(text);
+        });
+    });
+
+    // Load initial history
+    if (chatHistory && chatHistory.length > 0) {
+        chatHistory.forEach(msg => addMessageToUI(msg.content, msg.role, false));
     }
 });
